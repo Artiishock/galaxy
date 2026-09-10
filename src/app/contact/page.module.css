@@ -1,0 +1,54 @@
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.entry {
+  display: grid;
+  gap: var(--space-1);
+  padding-block-end: var(--space-4);
+  border-block-end: 1px solid rgba(126, 240, 216, 0.12);
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.badge {
+  padding: 0.15em 0.6em;
+  border-radius: 999px;
+  background: rgba(46, 230, 197, 0.16);
+  color: var(--color-accent);
+  letter-spacing: 0.06em;
+}
+
+.value,
+.link {
+  font-size: var(--text-lg);
+}
+
+.link {
+  color: var(--color-text);
+  text-decoration-color: rgba(46, 230, 197, 0.5);
+  text-underline-offset: 0.25em;
+}
+
+.link:hover,
+.link:focus-visible {
+  color: var(--color-accent);
+}
+
+.availability {
+  margin: 0;
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}

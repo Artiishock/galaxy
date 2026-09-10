@@ -1,0 +1,173 @@
+/*
+ * Сцена зафиксирована во вьюпорте и лежит под контентом: страницы прокручиваются
+ * поверх неё, а сама она не перерисовывается при навигации.
+ */
+.stage {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-stage);
+  overflow: hidden;
+  isolation: isolate;
+  /* Плотная подложка: пока фон не загрузился, экран не белый. */
+  background-color: var(--color-space);
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: var(--layer-backdrop);
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  /* Ролик сам по себе довольно яркий; приглушаем, чтобы орбиты остались главными. */
+  opacity: 0.7;
+  /* Кадр видео меняется постоянно — просим композитор вынести его на свой слой. */
+  will-change: transform;
+}
+
+/*
+ * Тонировка поверх фотографии: возвращает бирюзово-золотую гамму сцены,
+ * притемняет центр под заголовок (контраст текста — §7) и виньетирует края,
+ * чтобы кадр не выглядел обрезанным прямоугольником.
+ */
+.tint {
+  position: absolute;
+  inset: 0;
+  z-index: var(--layer-tint);
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse 62% 48% at 50% 45%,
+      rgba(4, 7, 13, 0.74),
+      rgba(4, 7, 13, 0.34) 62%,
+      transparent 100%
+    ),
+    radial-gradient(ellipse 70% 55% at 50% 45%, rgba(24, 92, 88, 0.3), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 78% 78%, rgba(120, 78, 20, 0.2), transparent 72%),
+    radial-gradient(ellipse 120% 100% at 50% 50%, transparent 55%, rgba(2, 4, 8, 0.85) 100%);
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: var(--layer-canvas);
+  opacity: 0;
+  transition: opacity 900ms var(--ease-out);
+}
+
+.stage[data-ready='true'] .canvas {
+  opacity: 1;
+}
+
+.nav {
+  position: absolute;
+  inset: 0;
+  z-index: var(--layer-nav);
+}
+
+.list {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/*
+ * Пока 3D не загрузился (или JS отключён), пункты раскладываются по кругу
+ * средствами CSS: сайт остаётся навигируемым без единой строки скрипта.
+ * После инициализации сцены координаты приходят из проекции — тогда точка
+ * отсчёта переносится в начало холста.
+ */
+.item {
+  --angle: calc(var(--index) * 1turn / var(--count));
+  --ring: clamp(7rem, 26vmin, 16rem);
+
+  position: absolute;
+  left: calc(50% + var(--ring) * cos(var(--angle)));
+  top: calc(50% + var(--ring) * sin(var(--angle)));
+  translate: -50% -50%;
+  will-change: transform;
+}
+
+.stage[data-ready='true'] .item {
+  left: 0;
+  top: 0;
+  /* Дальние объекты уходят вглубь по слою. */
+  z-index: calc(100 - var(--body-depth, 0.5) * 100);
+}
+
+.link {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  color: var(--color-text);
+  text-decoration: none;
+  border-radius: var(--radius-lg);
+  outline-offset: 4px;
+}
+
+/* Зона клика совпадает с телом на сцене, но не меньше комфортной для пальца. */
+.hit {
+  display: block;
+  inline-size: max(44px, calc(var(--body-radius, 16px) * 2.4));
+  block-size: max(44px, calc(var(--body-radius, 16px) * 2.4));
+  border-radius: 50%;
+  border: 1px solid rgba(126, 240, 216, 0.25);
+  background: radial-gradient(circle at 50% 50%, rgba(126, 240, 216, 0.22), transparent 68%);
+  transition:
+    border-color 200ms var(--ease-out),
+    background 200ms var(--ease-out),
+    scale 220ms var(--ease-out);
+}
+
+/* Сцена уже рисует светящуюся сферу — рамка-заглушка нужна только до её загрузки. */
+.stage[data-ready='true'] .hit {
+  border-color: transparent;
+  background: transparent;
+}
+
+/*
+ * Подпись скрыта, но остаётся в дереве доступности и в разметке: это имя ссылки.
+ * Проявляется при наведении и при фокусе с клавиатуры.
+ */
+.label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: var(--color-accent);
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.9);
+  opacity: 0;
+  translate: 0 -0.35rem;
+  transition:
+    opacity 220ms var(--ease-out),
+    translate 220ms var(--ease-out);
+}
+
+.link:hover .label,
+.link:focus-visible .label {
+  opacity: 1;
+  translate: 0 0;
+}
+
+.link:hover .hit,
+.link:focus-visible .hit {
+  scale: 1.15;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--color-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas,
+  .label,
+  .hit {
+    transition-duration: 1ms;
+  }
+}

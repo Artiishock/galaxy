@@ -1,0 +1,107 @@
+/*
+ * Слой контента над сценой. Сам слой прозрачен и не ловит указатель, чтобы
+ * планеты вокруг панели оставались кликабельными; ловит только сама панель.
+ */
+.layer {
+  position: relative;
+  z-index: var(--layer-content);
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: clamp(var(--space-4), 4vw, var(--space-8));
+  pointer-events: none;
+}
+
+.panel {
+  pointer-events: auto;
+  inline-size: min(72ch, 100%);
+  display: grid;
+  gap: var(--space-6);
+  padding: clamp(var(--space-6), 4vw, var(--space-8));
+  border: 1px solid rgba(126, 240, 216, 0.18);
+  border-radius: calc(var(--radius-lg) * 1.25);
+  /* Полупрозрачный фон: сцена продолжает жить за панелью и это видно. */
+  background: rgba(4, 7, 13, 0.82);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .panel {
+    background: rgba(4, 7, 13, 0.95);
+  }
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: var(--text-xs);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid rgba(126, 240, 216, 0.28);
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  transition:
+    color 200ms var(--ease-out),
+    border-color 200ms var(--ease-out);
+}
+
+.back {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  text-decoration: none;
+  transition: color 200ms var(--ease-out);
+}
+
+.close:hover,
+.close:focus-visible,
+.back:hover,
+.back:focus-visible {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.header {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(1.9rem, 1.2rem + 3vw, 3rem);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+}
+
+.lead {
+  margin: 0;
+  font-size: var(--text-lg);
+  color: var(--color-text-muted);
+  text-wrap: pretty;
+}
+
+.content {
+  display: grid;
+  gap: var(--space-8);
+}
