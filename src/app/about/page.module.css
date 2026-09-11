@@ -45,9 +45,14 @@
   color: var(--color-text-muted);
 }
 
-@media (min-width: 40rem) {
+/*
+ * Контейнерный запрос, а не медиа: блок живёт в узкой панели справа, и его
+ * раскладка должна зависеть от ширины этой панели, а не от ширины окна.
+ * С `@media` на широком мониторе колонка в 14rem съедала бы половину панели.
+ */
+@container (min-width: 30rem) {
   .fact {
-    grid-template-columns: 14rem 1fr;
+    grid-template-columns: minmax(0, 10rem) minmax(0, 1fr);
     gap: var(--space-4);
     align-items: baseline;
   }

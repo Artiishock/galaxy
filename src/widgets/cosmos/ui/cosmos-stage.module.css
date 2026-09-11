@@ -26,9 +26,10 @@
 }
 
 /*
- * Тонировка поверх фотографии: возвращает бирюзово-золотую гамму сцены,
- * притемняет центр под заголовок (контраст текста — §7) и виньетирует края,
- * чтобы кадр не выглядел обрезанным прямоугольником.
+ * Тонировка теперь лежит поверх холста, а не под ним: фон рисует WebGL, и
+ * прежний слой между видео и холстом оказался бы невидим. Из-за этого она
+ * градирует всю сцену целиком, поэтому стала заметно слабее — прежняя плотность
+ * (0.74 в центре) погасила бы и планеты, и каплю.
  */
 .tint {
   position: absolute;
@@ -36,15 +37,9 @@
   z-index: var(--layer-tint);
   pointer-events: none;
   background:
-    radial-gradient(
-      ellipse 62% 48% at 50% 45%,
-      rgba(4, 7, 13, 0.74),
-      rgba(4, 7, 13, 0.34) 62%,
-      transparent 100%
-    ),
-    radial-gradient(ellipse 70% 55% at 50% 45%, rgba(24, 92, 88, 0.3), transparent 70%),
-    radial-gradient(ellipse 50% 40% at 78% 78%, rgba(120, 78, 20, 0.2), transparent 72%),
-    radial-gradient(ellipse 120% 100% at 50% 50%, transparent 55%, rgba(2, 4, 8, 0.85) 100%);
+    radial-gradient(ellipse 60% 50% at 50% 45%, rgba(24, 92, 88, 0.14), transparent 72%),
+    radial-gradient(ellipse 50% 40% at 78% 78%, rgba(120, 78, 20, 0.12), transparent 74%),
+    radial-gradient(ellipse 118% 100% at 50% 50%, transparent 52%, rgba(2, 4, 8, 0.72) 100%);
 }
 
 .canvas {
@@ -66,6 +61,19 @@
   position: absolute;
   inset: 0;
   z-index: var(--layer-nav);
+  opacity: 1;
+  transition: opacity 600ms var(--ease-out);
+}
+
+/*
+ * Во время вступления камера стоит вплотную к ядру: объекты за кадром, а их
+ * DOM-кнопки всё ещё существуют. `visibility: hidden` убирает их разом и из
+ * попадания указателя, и из порядка табуляции — иначе можно было бы «нащупать»
+ * невидимую ссылку клавишей Tab.
+ */
+.nav[data-dimmed='true'] {
+  opacity: 0;
+  visibility: hidden;
 }
 
 .list {
@@ -100,15 +108,23 @@
   z-index: calc(100 - var(--body-depth, 0.5) * 100);
 }
 
+/*
+ * Сфера и подпись лежат в одной ячейке сетки: текст оказывается по центру
+ * объекта, а не под ним. Побочно это чинит и попадание — раньше подпись
+ * добавляла высоту, и центрируемый блок сдвигал круг клика вверх относительно
+ * настоящего центра сферы.
+ */
 .link {
   display: grid;
-  justify-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2);
+  place-items: center;
   color: var(--color-text);
   text-decoration: none;
   border-radius: var(--radius-lg);
   outline-offset: 4px;
+}
+
+.link > * {
+  grid-area: 1 / 1;
 }
 
 /* Зона клика совпадает с телом на сцене, но не меньше комфортной для пальца. */
@@ -132,27 +148,41 @@
 }
 
 /*
- * Подпись скрыта, но остаётся в дереве доступности и в разметке: это имя ссылки.
- * Проявляется при наведении и при фокусе с клавиатуры.
+ * Подпись видна постоянно.
+ *
+ * Под ней собственная подложка, а не только тень: текст ложится то на тёмный
+ * космос, то на светлую туманность, то прямо на текстуру сферы — на странице
+ * зоны объект занимает пол-экрана и подпись оказывается поверх коры или ржавчины.
+ * Тень такой разброс не вытягивает, плашка вытягивает всегда.
+ */
+/*
+ * Подпись в DOM — запасная и смысловая одновременно.
+ *
+ * Пока сцены нет (файл ядра ещё грузится или JavaScript выключен), она видна и
+ * подписывает пункты меню. Как только сцена готова, текст рисуется прямо на
+ * поверхности сферы средствами 3D, и DOM-версия убирается с экрана — но
+ * остаётся в разметке: это имя ссылки для скринридера и анкор для поисковика.
  */
 .label {
   font-size: var(--text-sm);
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   white-space: nowrap;
-  color: var(--color-accent);
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.9);
-  opacity: 0;
-  translate: 0 -0.35rem;
-  transition:
-    opacity 220ms var(--ease-out),
-    translate 220ms var(--ease-out);
+  color: var(--color-text);
+  -webkit-text-stroke: 3px rgba(2, 4, 8, 0.78);
+  paint-order: stroke fill;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
 }
 
-.link:hover .label,
-.link:focus-visible .label {
-  opacity: 1;
-  translate: 0 0;
+/* Не `display: none`: элемент должен остаться в дереве доступности. */
+.stage[data-ready='true'] .label {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .link:hover .hit,

@@ -1,0 +1,71 @@
+/*
+ * Слой вступления поверх сцены. Указатель не ловит: клик по нему должен
+ * доходить до окна и обрывать заставку, а не гаситься об оверлей.
+ */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-intro);
+  display: grid;
+  place-items: center;
+  padding: var(--space-8) var(--space-4);
+  pointer-events: none;
+  /* Лёгкое затемнение: ядро вплотную к камере яркое, текст на нём терялся бы. */
+  background: radial-gradient(ellipse 70% 60% at 50% 50%, rgba(2, 4, 8, 0.55), rgba(2, 4, 8, 0.8));
+  opacity: 1;
+  transition: opacity 700ms var(--ease-out);
+}
+
+/* `visibility` вместе с прозрачностью: слой должен быть полностью инертен,
+   а не просто невидим. */
+.overlay[data-visible='false'] {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.phrase {
+  margin: 0;
+  max-inline-size: 22ch;
+  text-align: center;
+  text-wrap: balance;
+  font-size: clamp(1.6rem, 1rem + 3.2vw, 3.4rem);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  color: var(--color-text);
+  text-shadow: 0 4px 28px rgba(0, 0, 0, 0.85);
+
+  /*
+   * Проявление запускается заново для каждой реплики: ключ у элемента меняется,
+   * React монтирует новый узел, и анимация стартует с нуля.
+   */
+  animation: phrase-in 900ms var(--ease-out) both;
+}
+
+/* Длинная финальная фраза читается строкой, а не «плакатом». */
+.phrase[data-long='true'] {
+  max-inline-size: 32ch;
+  font-size: clamp(1.15rem, 0.9rem + 1.5vw, 1.9rem);
+  font-weight: 500;
+}
+
+@keyframes phrase-in {
+  from {
+    opacity: 0;
+    /* Едва заметный подъём: движение помогает глазу поймать смену текста. */
+    translate: 0 0.4em;
+  }
+
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay,
+  .phrase {
+    animation: none;
+    transition-duration: 1ms;
+  }
+}

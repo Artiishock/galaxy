@@ -1,11 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useRef, type CSSProperties } from 'react';
 
 import { ORBITS } from '@/shared/config/site';
 import { useAmbientVideo } from '../lib/use-ambient-video';
 import { useCosmos } from '../lib/use-cosmos';
+import { useIntroSequence } from '../lib/use-intro-sequence';
+import { IntroOverlay } from './intro-overlay';
 import styles from './cosmos-stage.module.css';
 
 /**
@@ -23,16 +26,43 @@ import styles from './cosmos-stage.module.css';
 export function CosmosStage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const { registerItem, setHighlighted, ready } = useCosmos(canvasRef, ORBITS);
+
+  // Источник правды о фокусе — адрес страницы, а не клик. Тогда камера ведёт
+  // себя одинаково при клике, при кнопке «назад» и при открытии зоны по прямой
+  // ссылке; состояние сцены не может разойтись с тем, что видно на экране.
+  const pathname = usePathname();
+  const focused = ORBITS.find((orbit) => orbit.href === pathname);
+
+  // Вступление показывается только на главной: попасть на страницу зоны по
+  // прямой ссылке и упереться в заставку — не то, чего ждёт посетитель.
+  const { phrase, finished } = useIntroSequence();
+  const onHome = focused === undefined;
+
+  const introActive = onHome && !finished;
+  /*
+   * Видимость слоя завязана на наличие реплики, а не на `finished`.
+   * Разница принципиальная: на сервере реплики ещё нет, поэтому в статическом
+   * HTML оверлей прозрачен, а навигация видна. Иначе посетитель без JavaScript
+   * остался бы под тёмным слоем и без меню — убирать их было бы некому.
+   */
+  const introVisible = onHome && phrase !== null;
+
+  const { registerItem, setHighlighted, ready } = useCosmos(
+    canvasRef,
+    videoRef,
+    ORBITS,
+    focused?.id ?? null,
+    introActive,
+  );
   useAmbientVideo(videoRef);
 
   return (
     <div className={styles.stage} data-ready={ready}>
       {/*
-       * Фон декоративен: скрыт от вспомогательных технологий и убран из
-       * табуляции (§7). `preload="none"` — файл не конкурирует за канал с
-       * первой отрисовкой; до запуска виден кадр из `poster`.
-       * Запуском занимается useAmbientVideo, а не атрибут `autoplay`.
+       * Видео — источник кадров для фона сцены, а не самостоятельный слой:
+       * картинку рисует WebGL (`scene.background`), иначе капля в центре
+       * преломляла бы пустоту. Сам элемент скрыт за холстом и от
+       * вспомогательных технологий (§7); запуском занимается useAmbientVideo.
        */}
       <video
         ref={videoRef}
@@ -51,7 +81,11 @@ export function CosmosStage() {
 
       <canvas ref={canvasRef} className={styles.canvas} aria-hidden="true" />
 
-      <nav className={styles.nav} aria-label="Resume sections">
+      <IntroOverlay phrase={phrase} visible={introVisible} />
+
+      {/* Пока идёт вступление, объекты не видны и кликать по ним не по чему —
+          прячем и от указателя, и от табуляции. */}
+      <nav className={styles.nav} aria-label="Resume sections" data-dimmed={introVisible}>
         <ul className={styles.list}>
           {ORBITS.map((orbit, index) => (
             <li
@@ -71,11 +105,8 @@ export function CosmosStage() {
                 onBlur={() => setHighlighted(orbit.id, false)}
               >
                 <span className={styles.hit} aria-hidden="true" />
-                {/*
-                 * Подпись остаётся в разметке — это имя ссылки для скринридера и
-                 * анкор для поисковика. Визуально она скрыта и проявляется только
-                 * при наведении или фокусе, чтобы сцена оставалась чистой.
-                 */}
+                {/* Имя ссылки: видно постоянно, читается скринридером, служит
+                    анкором для поисковика. */}
                 <span className={styles.label}>{orbit.label}</span>
               </Link>
             </li>

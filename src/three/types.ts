@@ -1,4 +1,4 @@
-import type { Object3D } from 'three';
+import type { Object3D, PerspectiveCamera } from 'three';
 
 /** Всё, что захватывает ресурсы GPU или подписки, обязано уметь освобождаться (CLAUDE.md §3). */
 export interface Disposable {
@@ -13,6 +13,8 @@ export interface FrameContext {
   elapsed: number;
   /** false при `prefers-reduced-motion: reduce` — узлы обязаны замереть (§5.5). */
   motionEnabled: boolean;
+  /** Камера этого кадра: нужна узлам, которые разворачиваются к зрителю. */
+  camera: PerspectiveCamera;
 }
 
 /** Узел сцены: объект + собственный жизненный цикл. */

@@ -1,16 +1,26 @@
-import { AmbientLight, IcosahedronGeometry, PointLight, Vector3 } from 'three';
+import {
+  AmbientLight,
+  IcosahedronGeometry,
+  PointLight,
+  SRGBColorSpace,
+  SphereGeometry,
+  Vector3,
+  VideoTexture,
+  type Texture,
+} from 'three';
 
 import { BokehField } from './bokeh-field';
 import { CentralBody } from './central-body';
 import { Engine } from './engine';
+import { CameraRig } from './camera-rig';
 import { OrbitalObject } from './orbital-object';
-import { ParallaxController } from './parallax-controller';
 import { PointerTracker } from './pointer-tracker';
 import { ResourceRegistry } from './resource-registry';
 import { Starfield } from './starfield';
+import { TextureLibrary } from './texture-library';
 import { createBokehTexture, createGlowTexture } from './textures';
 import type { OrbitDescriptor } from '@/shared/config/site';
-import type { Disposable, ProjectedBody, ProjectionSink } from './types';
+import type { Disposable, FrameContext, ProjectedBody, ProjectionSink } from './types';
 
 const CENTRAL_RADIUS = 1.15;
 const STAR_COUNT = 420;
@@ -32,6 +42,15 @@ export interface CosmosSceneOptions {
   readonly orbits: readonly OrbitDescriptor[];
   /** Вызывается каждый кадр с экранными позициями тел для DOM-слоя. */
   readonly onProject: ProjectionSink;
+  /**
+   * Фон сцены. Обязателен именно как элемент WebGL: преломление капли берёт
+   * картинку из буфера сцены, и HTML-слой за канвасом туда не попадает.
+   */
+  readonly backdrop: {
+    readonly video: HTMLVideoElement;
+    /** Кадр-заставка: показывается, пока видео не заиграло или выключено. */
+    readonly posterUrl: string;
+  };
 }
 
 /**
@@ -45,7 +64,7 @@ export interface CosmosSceneOptions {
 export class CosmosScene implements Disposable {
   readonly #engine: Engine;
   readonly #registry = new ResourceRegistry();
-  readonly #parallax: ParallaxController;
+  readonly #rig: CameraRig;
   readonly #pointer: PointerTracker;
   readonly #entries: ProjectionEntry[] = [];
   readonly #projectedList: ProjectedBody[] = [];
@@ -53,6 +72,11 @@ export class CosmosScene implements Disposable {
   readonly #canvas: HTMLCanvasElement;
   /** Слои декора: их раскладка привязана к границам кадра и переживает ресайз. */
   readonly #decorFields: BokehField[] = [];
+  readonly #library: TextureLibrary;
+
+  /** Соотношение сторон фона: нужно, чтобы вписать его «по обрезке». */
+  #backdropAspect = 16 / 9;
+  #detachBackdrop: (() => void) | null = null;
 
   /** Переиспользуемый буфер: в кадре не аллоцируем (§5.3). */
   readonly #worldPosition = new Vector3();
@@ -62,17 +86,35 @@ export class CosmosScene implements Disposable {
     this.#canvas = canvas;
     this.#onProject = onProject;
 
-    this.#engine = new Engine({ canvas });
+    // Половинный буфер преломления: оно размыто шероховатостью, разницы не видно,
+    // а полноразмерный проход стоил бы заметной части кадра (§5.3).
+    this.#engine = new Engine({ canvas, transmissionResolutionScale: 0.5 });
     this.#engine.camera.position.copy(CAMERA_ORIGIN);
     this.#engine.camera.lookAt(SCENE_TARGET);
 
-    // Общие ресурсы: одна геометрия на все сферы и одна текстура на все свечения.
-    const sphereGeometry = this.#registry.track(new IcosahedronGeometry(1, 3));
+    this.#library = new TextureLibrary(this.#registry, this.#engine.maxAnisotropy);
+    this.#setUpBackdrop(options.backdrop);
+
+    // Сфера, а не икосаэдр: у икосаэдра UV-развёртка склеена заплатками на шве,
+    // и текстура на нём плывёт у полюсов.
+    const bodyGeometry = this.#registry.track(new SphereGeometry(1, 48, 32));
+    // Капле нужна плотная сетка: поверхность колышется смещением вершин.
+    const coreGeometry = this.#registry.track(new SphereGeometry(1, 96, 64));
+    // Каркас внутри капли, наоборот, должен оставаться крупной решёткой.
+    const shellGeometry = this.#registry.track(new IcosahedronGeometry(1, 2));
     const glowTexture = createGlowTexture(this.#registry);
 
-    // Свет — без собственного жизненного цикла, добавляется в сцену напрямую.
-    const ambient = new AmbientLight(0x22405a, 1.1);
-    const core = new PointLight(0x4fe0c8, 90, 60, 2);
+    /*
+     * Свет намеренно почти нейтральный.
+     *
+     * Насыщенный цветной источник перекрашивает всё, что освещает: с прежними
+     * синим ambient и бирюзовым point текстуры читались как бирюзовые, а не как
+     * кора и сталь. Оттенок оставлен минимальный — только чтобы сцена не
+     * выглядела стерильной; цвет зоны живёт на траектории, ореоле и подсветке.
+     * Свет — без собственного жизненного цикла, добавляется в сцену напрямую.
+     */
+    const ambient = new AmbientLight(0xb9c6d2, 1.15);
+    const core = new PointLight(0xfff4e6, 95, 60, 2);
     this.#engine.scene.add(ambient, core);
 
     const bokehTexture = createBokehTexture(this.#registry);
@@ -106,14 +148,20 @@ export class CosmosScene implements Disposable {
     );
 
     this.#engine.add(
-      new CentralBody({ radius: CENTRAL_RADIUS, glowTexture }, sphereGeometry, this.#registry),
+      new CentralBody(
+        { radius: CENTRAL_RADIUS, glowTexture },
+        coreGeometry,
+        shellGeometry,
+        this.#registry,
+      ),
     );
 
     for (const descriptor of orbits) {
       const object = new OrbitalObject(descriptor, {
-        sphereGeometry,
+        sphereGeometry: bodyGeometry,
         glowTexture,
         registry: this.#registry,
+        library: this.#library,
       });
       this.#engine.add(object);
 
@@ -156,21 +204,33 @@ export class CosmosScene implements Disposable {
     this.#layoutDecor();
     this.#engine.setOnResize(this.#layoutDecor);
 
-    this.#parallax = new ParallaxController(this.#engine.camera, {
-      strengthX: 2.6,
-      strengthY: 1.5,
+    this.#rig = new CameraRig(this.#engine.camera, {
+      origin: CAMERA_ORIGIN,
+      target: SCENE_TARGET,
+      parallaxX: 2.6,
+      parallaxY: 1.5,
+      focusDistance: 5.2,
+      focusShift: 0.45,
+      // Радиус ядра 1.15: с такой дистанции его диаметр перекрывает высоту
+      // кадра примерно в полтора раза — на экране не остаётся ничего другого.
+      introDistance: 1.8,
     });
     this.#pointer = new PointerTracker(
-      (nx, ny) => this.#parallax.setPointer(nx, ny),
-      () => this.#parallax.reset(),
+      (nx, ny) => this.#rig.setPointer(nx, ny),
+      () => this.#rig.resetPointer(),
     );
 
-    this.#engine.setAfterUpdate(this.#project);
+    this.#engine.setAfterUpdate(this.#afterUpdate);
     this.#engine.start();
   }
 
   setMotionEnabled(enabled: boolean): void {
     this.#engine.setMotionEnabled(enabled);
+  }
+
+  /** false — вступление закончено, камера отлетает к общему плану. */
+  setIntroActive(active: boolean): void {
+    this.#rig.setIntroActive(active);
   }
 
   #addDecor(field: BokehField): void {
@@ -182,7 +242,86 @@ export class CosmosScene implements Disposable {
     for (const field of this.#decorFields) {
       field.layout(this.#engine.camera, CAMERA_ORIGIN, SCENE_TARGET);
     }
+    this.#fitBackdrop();
   };
+
+  /**
+   * Фон сцены.
+   *
+   * Сначала ставится кадр-заставка: он уже скачан ради атрибута `poster`, и
+   * с ним фон не бывает чёрным — ни до запуска видео, ни при выключенной
+   * анимации, когда ролик так и остаётся на паузе.
+   * Видео подменяет его, только когда действительно заиграло.
+   */
+  #setUpBackdrop(backdrop: CosmosSceneOptions['backdrop']): void {
+    const poster = this.#library.color(backdrop.posterUrl);
+    this.#engine.scene.background = poster;
+    this.#fitBackdrop();
+
+    const { video } = backdrop;
+
+    const useVideo = (): void => {
+      if (video.videoWidth > 0) {
+        this.#backdropAspect = video.videoWidth / video.videoHeight;
+      }
+      const texture = this.#registry.track(new VideoTexture(video));
+      texture.colorSpace = SRGBColorSpace;
+      this.#engine.scene.background = texture;
+      this.#fitBackdrop();
+    };
+
+    video.addEventListener('playing', useVideo, { once: true });
+    this.#detachBackdrop = () => {
+      video.removeEventListener('playing', useVideo);
+    };
+  }
+
+  /**
+   * Вписывает фон «по обрезке», как `object-fit: cover`.
+   * Фоновая текстура в three растягивается на весь кадр, поэтому без правки
+   * `repeat`/`offset` картинка сплющивается на любом соотношении, кроме своего.
+   */
+  #fitBackdrop(): void {
+    const background = this.#engine.scene.background;
+    if (background === null || !(background as Texture).isTexture) {
+      return;
+    }
+
+    const texture = background as Texture;
+    const width = this.#canvas.clientWidth;
+    const height = this.#canvas.clientHeight;
+    if (width === 0 || height === 0) {
+      return;
+    }
+
+    const ratio = this.#backdropAspect / (width / height);
+    if (ratio > 1) {
+      texture.repeat.set(1 / ratio, 1);
+      texture.offset.set((1 - 1 / ratio) / 2, 0);
+    } else {
+      texture.repeat.set(1, ratio);
+      texture.offset.set(0, (1 - ratio) / 2);
+    }
+  }
+
+  /**
+   * Подлёт камеры к объекту зоны; `null` — возврат к общему плану.
+   * Камера следует за объектом, пока тот продолжает движение по орбите.
+   */
+  focusOn(id: string | null): void {
+    if (id === null) {
+      this.#rig.focusOn(null);
+      return;
+    }
+    for (const entry of this.#entries) {
+      if (entry.object.id === id) {
+        this.#rig.focusOn(entry.object);
+        return;
+      }
+    }
+    // Неизвестный id — не молчим и не гадаем: общий план честнее случайной зоны.
+    this.#rig.focusOn(null);
+  }
 
   /** Подсветка тела при наведении или фокусе на соответствующей ссылке. */
   setHighlighted(id: string, active: boolean): void {
@@ -196,7 +335,10 @@ export class CosmosScene implements Disposable {
 
   dispose(): void {
     this.#pointer.dispose();
-    this.#parallax.dispose();
+    this.#rig.dispose();
+    this.#detachBackdrop?.();
+    this.#detachBackdrop = null;
+    this.#engine.scene.background = null;
     this.#engine.setAfterUpdate(null);
     this.#engine.setOnResize(null);
     this.#decorFields.length = 0;
@@ -206,6 +348,16 @@ export class CosmosScene implements Disposable {
     this.#entries.length = 0;
     this.#projectedList.length = 0;
   }
+
+  /**
+   * Порядок здесь существенный: сначала камера занимает позицию этого кадра,
+   * и только потом считается проекция. Иначе DOM-кнопки отставали бы от
+   * картинки ровно на кадр, и при подлёте это было бы заметно.
+   */
+  readonly #afterUpdate = (ctx: FrameContext): void => {
+    this.#rig.update(ctx);
+    this.#project();
+  };
 
   /**
    * Проекция мировых координат в пиксели холста.

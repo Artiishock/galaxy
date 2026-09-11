@@ -3,6 +3,7 @@ import { Group, MathUtils, type BufferGeometry, type Texture, type Vector3 } fro
 import { OrbitBody } from './orbit-body';
 import { OrbitPath } from './orbit-path';
 import type { ResourceRegistry } from './resource-registry';
+import type { TextureLibrary } from './texture-library';
 import type { OrbitDescriptor } from '@/shared/config/site';
 import type { FrameContext, SceneNode } from './types';
 
@@ -12,6 +13,7 @@ export interface OrbitalObjectDeps {
   readonly sphereGeometry: BufferGeometry;
   readonly glowTexture: Texture;
   readonly registry: ResourceRegistry;
+  readonly library: TextureLibrary;
 }
 
 /**
@@ -35,7 +37,7 @@ export class OrbitalObject implements SceneNode {
   #angle: number;
 
   constructor(descriptor: OrbitDescriptor, deps: OrbitalObjectDeps) {
-    const { sphereGeometry, glowTexture, registry } = deps;
+    const { sphereGeometry, glowTexture, registry, library } = deps;
 
     this.id = descriptor.id;
     this.#semiMajor = descriptor.radius;
@@ -59,11 +61,17 @@ export class OrbitalObject implements SceneNode {
         color: descriptor.color,
         sphereGeometry,
         glowTexture,
+        textures: descriptor.textures,
+        roughness: descriptor.roughness,
+        metalness: descriptor.metalness,
+        library,
+        label: descriptor.label,
       },
       registry,
     );
 
-    // Группа задаёт плоскость орбиты; объект внутри всегда движется в локальном XZ.
+    // Плоскость орбиты неподвижна: наклон задаётся один раз и дальше не меняется.
+    // Объект внутри всегда движется в локальном XZ — единственное его движение.
     this.object3d = new Group();
     this.object3d.rotation.set(
       MathUtils.degToRad(descriptor.inclinationDeg),

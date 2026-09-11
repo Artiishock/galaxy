@@ -1,23 +1,40 @@
 /*
- * Слой контента над сценой. Сам слой прозрачен и не ловит указатель, чтобы
- * планеты вокруг панели оставались кликабельными; ловит только сама панель.
+ * Слой контента над сценой.
+ *
+ * Высота ровно во вьюпорт, а прокручивается только содержимое панели: страница
+ * целиком не едет, поэтому камера, следящая за объектом слева, никуда не
+ * уползает вместе со скроллом.
+ *
+ * Сам слой не ловит указатель — планеты вокруг панели остаются кликабельными.
  */
 .layer {
   position: relative;
   z-index: var(--layer-content);
-  min-height: 100svh;
+  block-size: 100svh;
   display: grid;
-  place-items: center;
-  padding: clamp(var(--space-4), 4vw, var(--space-8));
+  /*
+   * Строка ограничена высотой слоя. Без этого неявная строка растягивается
+   * под содержимое, `max-block-size: 100%` у панели считается от неё же и
+   * никогда не срабатывает: панель вырастает выше экрана, прокрутки внутри
+   * не возникает и колесо мыши не находит, что крутить.
+   */
+  grid-template-rows: minmax(0, 1fr);
+  align-items: center;
+  justify-items: end;
+  padding: clamp(var(--space-4), 3vw, var(--space-8));
   pointer-events: none;
 }
 
 .panel {
   pointer-events: auto;
-  inline-size: min(72ch, 100%);
+  /* Правая половина кадра: слева камера держит объект зоны. */
+  inline-size: min(58ch, 46vw);
+  max-block-size: 100%;
   display: grid;
+  /* Прокручивается только строка контента — шапка и возврат всегда на месте. */
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: var(--space-6);
-  padding: clamp(var(--space-6), 4vw, var(--space-8));
+  padding: clamp(var(--space-5), 2.4vw, var(--space-8));
   border: 1px solid rgba(126, 240, 216, 0.18);
   border-radius: calc(var(--radius-lg) * 1.25);
   /* Полупрозрачный фон: сцена продолжает жить за панелью и это видно. */
@@ -29,6 +46,19 @@
 @supports not (backdrop-filter: blur(1px)) {
   .panel {
     background: rgba(4, 7, 13, 0.95);
+  }
+}
+
+/* Портрет: панель ложится вниз на всю ширину — сдвигать её некуда.
+   Порог совпадает с проверкой в CameraRig, где объект уходит вверх кадра. */
+@media (max-aspect-ratio: 1 / 1) {
+  .layer {
+    align-items: end;
+  }
+
+  .panel {
+    inline-size: 100%;
+    max-block-size: 62svh;
   }
 }
 
@@ -88,7 +118,7 @@
 
 .title {
   margin: 0;
-  font-size: clamp(1.9rem, 1.2rem + 3vw, 3rem);
+  font-size: clamp(1.7rem, 1.1rem + 2.4vw, 2.6rem);
   font-weight: 700;
   letter-spacing: 0.01em;
   line-height: 1.1;
@@ -101,7 +131,14 @@
   text-wrap: pretty;
 }
 
+/*
+ * Содержимое зоны. Прокрутка и полоса — забота ScrollArea; здесь только ритм.
+ * `container-type` включает контейнерные запросы: блоки внутри должны
+ * подстраиваться под ширину панели, а не под ширину окна.
+ */
 .content {
+  container-type: inline-size;
   display: grid;
   gap: var(--space-8);
+  padding-block-end: var(--space-2);
 }

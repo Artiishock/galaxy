@@ -1,0 +1,84 @@
+.root {
+  position: relative;
+  display: grid;
+  /* Без этого grid-элемент не даёт себя сжать и прокрутка не возникает. */
+  min-block-size: 0;
+}
+
+.viewport {
+  overflow-y: auto;
+  min-block-size: 0;
+  /* Запас справа, чтобы текст не подлезал под собственную полосу. */
+  padding-inline-end: var(--scrollbar-gutter);
+  /* Слева — место под обводку фокуса, иначе overflow её срежет. */
+  padding-inline-start: 3px;
+  /* Докрутили до края — страница за панелью не едет следом. */
+  overscroll-behavior: contain;
+
+  /* Нативная полоса скрыта полностью: вместо неё рисуется своя.
+     Прокрутка при этом остаётся штатной — колесо, тачпад, клавиатура
+     и инерция на тач-экранах работают средствами браузера. */
+  scrollbar-width: none;
+}
+
+.viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.track {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  inline-size: var(--scrollbar-width);
+  border-radius: 999px;
+  background: rgba(126, 240, 216, 0.08);
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 220ms var(--ease-out),
+    visibility 220ms;
+}
+
+.track[data-scrollable='true'] {
+  opacity: 1;
+  visibility: visible;
+}
+
+.thumb {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(46, 230, 197, 0.8), rgba(240, 180, 41, 0.6));
+  cursor: grab;
+  /* Ползунок двигается только трансформацией — без пересчёта раскладки. */
+  will-change: transform;
+  transition: background 200ms var(--ease-out);
+}
+
+.thumb:hover {
+  background: linear-gradient(180deg, rgba(46, 230, 197, 1), rgba(240, 180, 41, 0.85));
+}
+
+.root[data-dragging='true'] .thumb {
+  cursor: grabbing;
+  background: linear-gradient(180deg, rgba(46, 230, 197, 1), rgba(240, 180, 41, 0.9));
+}
+
+/* Пока тянут ползунок, выделять текст под курсором не нужно. */
+.root[data-dragging='true'] .viewport {
+  user-select: none;
+}
+
+.viewport:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-lg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track,
+  .thumb {
+    transition-duration: 1ms;
+  }
+}

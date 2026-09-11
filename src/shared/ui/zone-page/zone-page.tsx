@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
+import { ScrollArea } from '../scroll-area/scroll-area';
 import styles from './zone-page.module.css';
 
 interface ZonePageProps {
@@ -36,7 +37,9 @@ export function ZonePage({ title, lead, children }: ZonePageProps) {
           {lead === undefined ? null : <p className={styles.lead}>{lead}</p>}
         </header>
 
-        <div className={styles.content}>{children}</div>
+        <ScrollArea label={`${title} — section content`}>
+          <div className={styles.content}>{children}</div>
+        </ScrollArea>
 
         <Link href="/" className={styles.back}>
           <span aria-hidden="true">←</span> Back to the orbit

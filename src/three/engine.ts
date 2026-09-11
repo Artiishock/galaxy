@@ -12,6 +12,12 @@ export interface EngineOptions {
   readonly fov?: number;
   readonly near?: number;
   readonly far?: number;
+  /**
+   * Разрешение буфера преломления как доля от кадра. Преломление и так размыто
+   * шероховатостью, поэтому половинное разрешение экономит заметную часть кадра
+   * и почти не видно.
+   */
+  readonly transmissionResolutionScale?: number;
 }
 
 /**
@@ -31,7 +37,7 @@ export class Engine implements Disposable {
   readonly #canvas: HTMLCanvasElement;
   readonly #clock = new Clock(false);
   readonly #nodes: SceneNode[] = [];
-  readonly #frame: FrameContext = { delta: 0, elapsed: 0, motionEnabled: true };
+  readonly #frame: FrameContext;
 
   readonly #resizeObserver: ResizeObserver;
   readonly #intersectionObserver: IntersectionObserver;
@@ -44,7 +50,7 @@ export class Engine implements Disposable {
   #disposed = false;
 
   constructor(options: EngineOptions) {
-    const { canvas, fov = 45, near = 0.1, far = 200 } = options;
+    const { canvas, fov = 45, near = 0.1, far = 200, transmissionResolutionScale = 1 } = options;
     this.#canvas = canvas;
 
     this.#renderer = new WebGLRenderer({
@@ -57,9 +63,11 @@ export class Engine implements Disposable {
     this.#renderer.setClearColor(0x000000, 0);
     this.#renderer.toneMapping = ACESFilmicToneMapping;
     this.#renderer.toneMappingExposure = 1.15;
+    this.#renderer.transmissionResolutionScale = transmissionResolutionScale;
 
     this.scene = new Scene();
     this.camera = new PerspectiveCamera(fov, 1, near, far);
+    this.#frame = { delta: 0, elapsed: 0, motionEnabled: true, camera: this.camera };
 
     this.#resizeObserver = new ResizeObserver(this.#handleResize);
     this.#resizeObserver.observe(canvas);
@@ -70,6 +78,11 @@ export class Engine implements Disposable {
     document.addEventListener('visibilitychange', this.#handleVisibility);
 
     this.#applySize();
+  }
+
+  /** Потолок анизотропной фильтрации, который держит эта видеокарта. */
+  get maxAnisotropy(): number {
+    return this.#renderer.capabilities.getMaxAnisotropy();
   }
 
   add(node: SceneNode): void {

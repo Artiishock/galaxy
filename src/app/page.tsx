@@ -1,7 +1,6 @@
 import { RESUME } from '@/domain/resume';
 import { JsonLd } from '@/shared/lib/json-ld';
 import { ORBITS, SITE } from '@/shared/config/site';
-import styles from './page.module.css';
 
 /**
  * Главная страница.
@@ -68,14 +67,19 @@ export default function HomePage() {
   };
 
   return (
-    <main id="main" className={styles.center}>
+    <main id="main">
       <JsonLd data={graph} />
 
-      <div className={styles.block}>
-        <h1 className={styles.title}>{person.name}</h1>
-        <p className={styles.tagline}>{person.headline}</p>
-        <p className={styles.hint}>Pick an orbiting object to open a section</p>
-      </div>
+      {/*
+       * Главная не показывает текста вовсе: вся её содержательная часть —
+       * орбитальная навигация, а она живёт в layout.
+       *
+       * Имя и роль остаются в разметке скрытыми: `<h1>` — главный сигнал для
+       * поиска по имени владельца резюме, и страница не должна оставаться без
+       * заголовка первого уровня (§6).
+       */}
+      <h1 className="visuallyHidden">{person.name}</h1>
+      <p className="visuallyHidden">{person.headline}</p>
     </main>
   );
 }
