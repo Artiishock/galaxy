@@ -2,6 +2,13 @@ import type { MetadataRoute } from 'next';
 
 import { ORBITS, SITE } from '@/shared/config/site';
 
+/*
+ * При `output: 'export'` маршрут обязан объявить себя статическим: сервера,
+ * который мог бы вычислить его по запросу, не будет. Дата фиксируется на момент
+ * сборки — как и расчёт стажа, поэтому сайт стоит пересобирать периодически.
+ */
+export const dynamic = 'force-static';
+
 /** Карта сайта генерируется из конфигурации — руками её не поддерживают (§6). */
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();

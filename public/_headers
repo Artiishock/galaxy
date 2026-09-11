@@ -1,0 +1,23 @@
+# Заголовки ответа для статического хостинга (формат Cloudflare Pages / Netlify).
+#
+# При `output: 'export'` у приложения нет сервера, поэтому `headers()` из
+# next.config недоступен — заголовки выставляет сам хостинг по этому файлу.
+# Файл лежит в `public/`, значит попадает в корень `out/` при сборке.
+#
+# CSP здесь намеренно нет: строгая политика для Next требует nonce, а nonce
+# несовместим со статикой. См. «Открытые задачи» в README.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
+
+# Ассеты с хешем в имени неизменяемы — кэшируем навсегда.
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Медиа перезаписывается вручную под тем же именем, поэтому кэш с проверкой.
+/media/*
+  Cache-Control: public, max-age=86400, must-revalidate

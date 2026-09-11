@@ -15,7 +15,9 @@ import tseslint from 'typescript-eslint';
  * жизненным циклом это важнее стилистических правил.
  */
 export default tseslint.config(
-  { ignores: ['.next/**', 'node_modules/**', 'next-env.d.ts', 'eslint.config.mjs'] },
+  // `out/` — результат статического экспорта: там лежит собранный код, который
+  // линтовать нечего и незачем.
+  { ignores: ['.next/**', 'out/**', 'node_modules/**', 'next-env.d.ts', 'eslint.config.mjs'] },
 
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
